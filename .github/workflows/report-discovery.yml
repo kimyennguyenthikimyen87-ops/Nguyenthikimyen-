@@ -1,0 +1,122 @@
+name: Security Report Discovery
+
+on:
+  schedule:
+    - cron: '0 11 * * 1-5'  # 6:00 AM ET weekdays
+
+  workflow_dispatch:
+    inputs:
+      max_discoveries:
+        description: 'Max issues to create (default: from workflow-config.json)'
+        required: false
+        default: ''
+        type: string
+      override_date:
+        description: 'Override today''s date for testing (YYYY-MM-DD, leave blank for today)'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: security-reports-processing
+  cancel-in-progress: false
+
+
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    permissions:
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install --break-system-packages requests google-genai google-generativeai google-ai-generativelanguage
+
+      - name: Check automated issue cap
+        id: issue-cap
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .github/scripts/check-issue-cap.py
+
+      - name: Run discovery
+        id: discovery
+        if: steps.issue-cap.outputs.cap_reached != 'true'
+        env:
+          GOOGLE_SEARCH_API_KEY: ${{ secrets.GOOGLE_SEARCH_API_KEY }}
+          GOOGLE_CSE_ID:         ${{ secrets.GOOGLE_CSE_ID }}
+          GH_TOKEN:              ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY:     ${{ github.repository }}
+          VIRUS_TOTAL_API_KEY:   ${{ secrets.VIRUS_TOTAL_API_KEY }}
+          GEMINI_API_KEY:        ${{ secrets.GEMINI_API_KEY }}
+          MAX_DISCOVERIES:       ${{ github.event.inputs.max_discoveries }}
+          OVERRIDE_DATE:         ${{ github.event.inputs.override_date }}
+        run: |
+          ARGS="--artifacts-dir .github/artifacts"
+
+          if [ -n "$MAX_DISCOVERIES" ]; then
+            ARGS="$ARGS --max-discoveries $MAX_DISCOVERIES"
+          fi
+          if [ -n "$OVERRIDE_DATE" ]; then
+            ARGS="$ARGS --date $OVERRIDE_DATE"
+          fi
+
+          set +e
+          python .github/scripts/report-discovery.py $ARGS > discovery_output.log 2>&1
+          EXIT_CODE=$?
+          set -e
+
+          cat discovery_output.log
+
+          export EXIT_CODE
+          python .github/scripts/parse-discovery-output.py
+          
+          exit $EXIT_CODE
+      - name: Upload discovery log
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: discovery-log-${{ github.run_id }}
+          path: discovery_output.log
+          retention-days: 14
+
+      - name: Generate step summary
+        if: always()
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          OVERRIDE_DATE: ${{ github.event.inputs.override_date }}
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          CAP_REACHED: ${{ steps.issue-cap.outputs.cap_reached }}
+          OPEN_ISSUES: ${{ steps.issue-cap.outputs.open_count }}
+          MAX_ISSUES: ${{ steps.issue-cap.outputs.max_issues }}
+          CREATED: ${{ steps.discovery.outputs.created }}
+          TASKS: ${{ steps.discovery.outputs.tasks }}
+          SUPPRESSED: ${{ steps.discovery.outputs.suppressed }}
+          SKIPPED: ${{ steps.discovery.outputs.skipped }}
+          PDF_F: ${{ steps.discovery.outputs.pdf_finds }}
+          LAND_F: ${{ steps.discovery.outputs.landing_finds }}
+          T_CURR: ${{ steps.discovery.outputs.tier_current }}
+          T_STALE: ${{ steps.discovery.outputs.tier_stale }}
+          T_OLD: ${{ steps.discovery.outputs.tier_old }}
+          VT_CLEAN: ${{ steps.discovery.outputs.vt_clean }}
+          VT_SUSP: ${{ steps.discovery.outputs.vt_suspicious }}
+          VT_MAL: ${{ steps.discovery.outputs.vt_malicious }}
+        run: |
+          python .github/scripts/generate-workflow-summary.py --workflow discovery

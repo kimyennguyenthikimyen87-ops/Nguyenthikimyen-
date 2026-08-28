@@ -1,0 +1,102 @@
+name: Suggest a Security Report
+description: Suggest an annual security report to add to the repository.
+title: "[Report Suggestion] "
+labels:
+  - report-suggestion
+assignees:
+  - jacobdjwilson
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 📄 Suggest a Security Report
+
+        Thanks for helping grow this collection! Please fill out the fields below.
+        Once submitted, a maintainer will review and — if the report meets the criteria —
+        an automated workflow will download and ingest it for you.
+
+        **Requirements:**
+        - Must be a publicly accessible PDF
+        - Must be an annual (or recurring periodic) security report
+        - Must not already be listed in the [README](https://github.com/jacobdjwilson/awesome-annual-security-reports#readme)
+
+  - type: input
+    id: organization_name
+    attributes:
+      label: Organization Name
+      description: The company or organization that published this report.
+      placeholder: "e.g. Microsoft, CrowdStrike, Verizon"
+    validations:
+      required: true
+
+  - type: input
+    id: report_title
+    attributes:
+      label: Report Title
+      description: The official title of the report.
+      placeholder: "e.g. Digital Defense Report"
+    validations:
+      required: true
+
+  - type: input
+    id: report_year
+    attributes:
+      label: Report Year
+      description: The year this edition of the report covers (4-digit year).
+      placeholder: "e.g. 2026"
+    validations:
+      required: true
+
+  - type: input
+    id: report_url
+    attributes:
+      label: Direct PDF URL
+      description: |
+        A direct link to the PDF file. Must be publicly accessible without login.
+        The URL should end in `.pdf` or redirect to a PDF download.
+      placeholder: "https://example.com/report-2026.pdf"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: report_category
+    attributes:
+      label: Category
+      description: Which category best describes this report?
+      options:
+        - Threat Intelligence
+        - Vulnerability & Patch Management
+        - Cloud Security
+        - Application Security
+        - Identity & Access Management
+        - Data Breach & Incident Response
+        - Ransomware & Malware
+        - Phishing & Social Engineering
+        - Compliance & Regulation
+        - AI & Emerging Threats
+        - OT / ICS / IoT Security
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional_notes
+    attributes:
+      label: Additional Notes
+      description: Anything else relevant — alternate download links, access notes, etc.
+      placeholder: "Optional. Include alternative URLs if the primary link requires registration."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Submission Checklist
+      options:
+        - label: The PDF URL is publicly accessible (no login required)
+          required: true
+        - label: This report is not already listed in the README
+          required: true
+        - label: This is an annual or recurring periodic report (not a one-off whitepaper)
+          required: true
