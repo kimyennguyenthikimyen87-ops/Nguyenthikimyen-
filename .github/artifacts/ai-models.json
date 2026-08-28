@@ -1,0 +1,56 @@
+{
+  "models": {
+    "primary": "gemini-3.5-flash-lite",
+    "secondary": "gemini-3.6-flash",
+    "tertiary": "gemini-3.7-flash",
+    "embedding": "text-embedding-2",
+    "comment": "Last updated July 21 2026"
+  },
+  "configurations": {
+    "default": {
+      "temperature": 0.2,
+      "top_p": 0.95,
+      "top_k": 40,
+      "max_output_tokens": 8192
+    },
+    "summarization": {
+      "temperature": 0.2,
+      "top_p": 0.9,
+      "top_k": 40,
+      "max_output_tokens": 1024,
+      "comment": "Low temperature for focused, data-driven summaries"
+    },
+    "categorization": {
+      "temperature": 0.1,
+      "top_p": 0.85,
+      "top_k": 20,
+      "max_output_tokens": 200,
+      "comment": "Very low temperature for consistent classification"
+    },
+    "conversion": {
+      "temperature": 0.1,
+      "top_p": 0.95,
+      "top_k": 40,
+      "max_output_tokens": 65536,
+      "comment": "Low temperature for faithful, deterministic PDF-to-Markdown reformatting"
+    }
+  },
+  "retry_policy": {
+    "max_attempts": 3,
+    "initial_delay_seconds": 2,
+    "backoff_multiplier": 2,
+    "max_delay_seconds": 30,
+    "comment": "For validation failures and general transient errors"
+  },
+  "quota_retry_policy": {
+    "max_attempts": 3,
+    "initial_delay_seconds": 60,
+    "backoff_multiplier": 2,
+    "max_delay_seconds": 180,
+    "comment": "For 429 RESOURCE_EXHAUSTED errors"
+  },
+  "rate_limits": {
+    "requests_per_minute": 60,
+    "tokens_per_minute": 100000
+  }
+}

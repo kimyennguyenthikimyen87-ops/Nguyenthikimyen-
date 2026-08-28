@@ -1,0 +1,91 @@
+name: Discovery Feedback Learner
+
+on:
+  schedule:
+    # Run every Monday at 7:00 AM ET (12:00 UTC) — 1 hour after the
+    # Security Report Discovery run (06:00 AM ET) so triage activity
+    # from the prior week is captured and any Monday discovery issues
+    # are committed before the learner reads discovery-feedback.json.
+    - cron: '0 12 * * 1'
+
+  # Also triggered automatically when the triage workflow closes enough issues:
+  # The issue-triage workflow can dispatch this via repository_dispatch once
+  # a configurable threshold is reached (optional enhancement).
+  repository_dispatch:
+    types: [run-feedback-learner]
+
+  workflow_dispatch:
+    inputs:
+      min_events:
+        description: 'Minimum feedback events before running Gemini (default: 5)'
+        required: false
+        default: '5'
+        type: string
+      dry_run:
+        description: 'Dry run — analyse but do not write changes'
+        required: false
+        default: false
+        type: boolean
+
+
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+jobs:
+  learn:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install --break-system-packages \
+            google-genai \
+            google-generativeai \
+            google-ai-generativelanguage
+
+      - name: Run feedback learner
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MIN_EVENTS: ${{ github.event.inputs.min_events }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          ARGS="--artifacts-dir .github/artifacts"
+
+          if [ -n "$MIN_EVENTS" ]; then
+            ARGS="$ARGS --min-events $MIN_EVENTS"
+          fi
+
+          if [ "$DRY_RUN" == "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+
+          python .github/scripts/discovery-feedback-learner.py $ARGS
+
+      - name: Commit updated feedback file
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/artifacts/discovery-feedback.json
+          git diff --cached --quiet || \
+            git commit -m "chore: update discovery scoring from feedback learner [$(date +%Y-%m-%d)]"
+          git push
+
+      - name: Generate step summary
+        if: always()
+        run: |
+          python .github/scripts/generate-workflow-summary.py --workflow learner

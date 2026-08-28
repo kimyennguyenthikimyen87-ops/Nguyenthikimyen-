@@ -1,0 +1,221 @@
+name: Repository Integrity Validator
+
+on:
+  # Fires whenever either processing pipeline completes.
+  # A gate job below blocks validation until BOTH pipelines are idle,
+  # preventing false-positive findings from half-written files.
+  workflow_run:
+    workflows:
+      - "Security Reports Processing Pipeline"
+      - "Refresh Old Conversions"
+    types: [completed]
+    branches: [main]
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      force_validation:
+        description: 'Force validation even if no files changed'
+        required: false
+        default: false
+        type: boolean
+
+  # Weekly scheduled validation (Monday 8 AM ET)
+  schedule:
+    - cron: '0 13 * * 1'
+
+
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ============================================================
+  # GATE JOB
+  # Checks whether both monitored pipelines have finished on this
+  # SHA before allowing the validation job to proceed.
+  # This eliminates race conditions where validation sees partially
+  # written files during an active pipeline run.
+  # ============================================================
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      proceed:     ${{ steps.gate.outputs.proceed }}
+      skip_reason: ${{ steps.gate.outputs.skip_reason }}
+      trigger_sha: ${{ steps.gate.outputs.trigger_sha }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Check pipeline gate
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_RUN_NAME: ${{ github.event.workflow_run.name }}
+          WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          python .github/scripts/check-pipeline-gate.py
+
+  # ============================================================
+  # VALIDATE JOB
+  # Runs only when the gate gives the green light.
+  # Job itself always exits green unless the Python script crashes.
+  # Validation findings are handled via GitHub Issues, not job failure.
+  # ============================================================
+  validate-repository:
+    permissions:
+      issues: write
+      actions: write
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install --break-system-packages "pypdf[crypto]"
+
+      - name: Run validation
+        id: validator
+        run: |
+          # The script exits 0 for any result including validation findings.
+          # It exits 1 only for fatal script-level errors (e.g. missing config).
+          python .github/scripts/validate-repository.py \
+            --artifacts-dir .github/artifacts \
+            --output-report validation_report.md \
+            --output-findings validation_findings.json
+          echo "script_ok=true" >> $GITHUB_OUTPUT
+
+      - name: Manage GitHub issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .github/scripts/manage-validation-issues.py
+      - name: Auto-dispatch pipeline for orphaned PDFs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "validation_findings.json" ]; then
+            exit 0
+          fi
+          
+          HAS_ORPHANS=$(jq '[.findings[] | select(.category == "orphaned_pdf" or .category == "stub_markdown")] | length' validation_findings.json)
+          
+          if [ "$HAS_ORPHANS" -eq 0 ]; then
+            echo "⊘ No orphaned PDFs or stubs found — skipping auto-dispatch"
+            exit 0
+          fi
+
+          # Check for an already-running or queued pipeline run
+          ACTIVE=$(gh run list \
+            --workflow security-reports-pipeline.yml \
+            --repo "${{ github.repository }}" \
+            --json status \
+            --jq '[.[] | select(.status == "in_progress" or .status == "queued" or .status == "waiting")] | length')
+
+          if [ "${ACTIVE:-0}" -gt 0 ]; then
+            echo "⊘ Pipeline already active ($ACTIVE run(s)) — skipping auto-dispatch"
+            exit 0
+          fi
+
+          echo "🔄 Dispatching pipeline to convert orphaned/stub PDF(s)..."
+          gh workflow run security-reports-pipeline.yml \
+            --repo "${{ github.repository }}" \
+            --ref main
+
+          echo "✓ Pipeline dispatched — orphaned PDFs will be converted on next run"
+
+      - name: Generate step summary
+        if: always()
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          HAS_FINDINGS: ${{ steps.findings.outputs.has_findings }}
+          ERROR_COUNT: ${{ steps.findings.outputs.error_count }}
+          WARNING_COUNT: ${{ steps.findings.outputs.warning_count }}
+          NEW_ISSUE: ${{ steps.issue_mgmt.outputs.new_issue }}
+          CLOSED_ISSUE: ${{ steps.issue_mgmt.outputs.closed_issue }}
+          UNCHANGED_ISSUE: ${{ steps.issue_mgmt.outputs.unchanged_issue }}
+          TRIGGER_SHA: ${{ needs.gate.outputs.trigger_sha }}
+        run: |
+          python .github/scripts/generate-validator-summary.py --step validate
+
+  # ============================================================
+  # CLEANUP JOB
+  # Runs on schedule and manual trigger only.
+  # Deletes branches whose PR was closed without merging and
+  # which have not had any new commits pushed since the PR closed.
+  # Protected branches (main, development) are never touched.
+  # ============================================================
+  cleanup-stale-branches:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    # Only run on schedule or manual dispatch — skip on workflow_run triggers
+    # to avoid racing with active development work.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Delete branches from closed, unmerged PRs
+        id: cleanup
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .github/scripts/cleanup-stale-branches.py
+
+      - name: Generate step summary
+        if: always()
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          DELETED: ${{ steps.cleanup.outputs.deleted_count }}
+          SKIPPED: ${{ steps.cleanup.outputs.skipped_count }}
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          python .github/scripts/generate-validator-summary.py --step cleanup
+
+  # ============================================================
+  # SKIPPED SUMMARY JOB
+  # Runs when the gate decided to skip — produces a clean green
+  # run with an informative summary instead of a blank/red job.
+  # ============================================================
+  skipped-summary:
+    needs: gate
+    if: needs.gate.outputs.proceed != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Generate skip summary
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          TRIGGER_SHA: ${{ needs.gate.outputs.trigger_sha }}
+          REASON: ${{ needs.gate.outputs.skip_reason }}
+        run: |
+          python .github/scripts/generate-validator-summary.py --step skipped

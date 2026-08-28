@@ -1,0 +1,211 @@
+{
+  "google_search": {
+    "base_url": "https://www.googleapis.com/customsearch/v1",
+    "env_api_key": "GOOGLE_SEARCH_API_KEY",
+    "env_cse_id": "GOOGLE_CSE_ID",
+    "request_timeout_seconds": 10,
+    "rate_limit_sleep_seconds": 1,
+    "retry_policy": {
+      "max_attempts": 3,
+      "initial_delay_seconds": 2,
+      "backoff_multiplier": 2,
+      "max_delay_seconds": 15
+    },
+    "modes": {
+      "report_url": {
+        "description": "Finds the specific landing page URL for a named security report. Uses two-phase search: Phase 1 is site-scoped to the existing domain (when existing_url is supplied), Phase 2 is a broad fallback.",
+        "query_templates": [
+          "{organization} \"{title}\" {year}",
+          "{organization} \"{title}\" {year} security report",
+          "{organization} {title} {year} report",
+          "{organization} {title} report",
+          "{organization} security {title} {year} report",
+          "{organization} {title}"
+        ],
+        "num_results": 10,
+        "scoring": {
+          "org_in_link": 3,
+          "year_in_link": 3,
+          "report_in_link": 2,
+          "year_in_title": 2,
+          "org_in_title": 1,
+          "short_path_penalty": -8,
+          "short_path_threshold": 3,
+          "toplevel_domain_penalty": -30,
+          "existing_domain_match_bonus": 20,
+          "existing_subdomain_match_bonus": 10,
+          "min_accept_score": 3
+        },
+        "skip_domains": [
+          "google.com", "linkedin.com", "twitter.com", "x.com",
+          "facebook.com", "youtube.com", "reddit.com", "wikipedia.org"
+        ]
+      },
+      "report_discovery_pdf": {
+        "description": "Pass 1 — targets direct PDF files. filetype:pdf operator maximises direct-download hits.",
+        "query_template": "{organization} \"{title}\" {year} filetype:pdf",
+        "num_results": 8,
+        "skip_domains": [
+          "google.com", "linkedin.com", "twitter.com", "x.com",
+          "facebook.com", "youtube.com", "reddit.com", "wikipedia.org",
+          "amazon.com", "slideshare.net", "scribd.com"
+        ]
+      },
+      "report_discovery_landing": {
+        "description": "Pass 2 — targets landing pages and gated download pages. No filetype filter so gated pages surface. Run only when pass 1 finds nothing above threshold.",
+        "query_template": "{organization} \"{title}\" {year} download",
+        "num_results": 8,
+        "skip_domains": [
+          "google.com", "linkedin.com", "twitter.com", "x.com",
+          "facebook.com", "youtube.com", "reddit.com", "wikipedia.org",
+          "amazon.com", "slideshare.net", "scribd.com"
+        ]
+      },
+      "generic": {
+        "description": "General-purpose search returning top results with no domain scoring.",
+        "query_template": "{query}",
+        "num_results": 5,
+        "scoring": {},
+        "skip_domains": []
+      }
+    },
+    "find_type_classification": {
+      "_comment": "Rules used by ResultClassifier to determine whether a URL is a direct PDF, a gated landing page, or unknown. Evaluated in order: pdf_indicators checked first, then landing_page_indicators. All matches are case-insensitive substring checks against the lowercased URL.",
+
+      "pdf_indicators": [
+        ".pdf",
+        "/download/",
+        "/downloads/",
+        "/content/dam/",
+        "/wp-content/uploads/",
+        "/media/documents/",
+        "/files/",
+        "/assets/documents/",
+        "/docs/"
+      ],
+
+      "landing_page_indicators": [
+        "/resources/",
+        "/resource/",
+        "/report/",
+        "/reports/",
+        "/research/",
+        "/whitepaper/",
+        "/whitepapers/",
+        "/insights/",
+        "/library/",
+        "/knowledge/",
+        "/get/",
+        "/access/",
+        "/register/",
+        "/form/",
+        "/lp/",
+        "/landing/",
+        "/thank-you/",
+        "/thankyou/"
+      ],
+
+      "gated_page_signals": [
+        "download now",
+        "download the report",
+        "download the full report",
+        "get the report",
+        "get the full report",
+        "access the report",
+        "fill out",
+        "complete the form",
+        "provide your",
+        "register to",
+        "sign up to",
+        "submit your",
+        "request the",
+        "enter your email",
+        "business email",
+        "free download"
+      ],
+
+      "gated_bonus": 12,
+      "gated_bonus_comment": "Score bonus applied when gated_page_signals appear in the snippet, confirming a real gated download page rather than a generic web page."
+    },
+    "discovery_heuristics": {
+      "_comment": "Scoring config used exclusively by report-discovery.py. PDF and landing page candidates share the same positive/negative keyword signals; find_type-specific bonuses are applied on top.",
+
+      "score_threshold": 20,
+      "score_threshold_comment": "Raised from 15 to 20 to reduce false positives. Domain match bonus (+25) means on-domain results still clear the bar easily; off-domain raw PDFs now need stronger keyword evidence.",
+
+      "positive_signals": {
+        "annual":               10,
+        "year in review":       10,
+        "threat landscape":     10,
+        "state of":              8,
+        "security report":       8,
+        "cybersecurity report":  8,
+        "threat report":         8,
+        "risk report":           6,
+        "intelligence report":   6,
+        "breach report":         6,
+        "vulnerability report":  6,
+        "report":                4,
+        "survey":                3,
+        "findings":              3
+      },
+
+      "negative_signals": {
+        "webinar":        -50,
+        "slides":         -50,
+        "template":       -25,
+        "product sheet":  -25,
+        "case study":     -15,
+        "brochure":       -20,
+        "datasheet":      -20,
+        "infographic":    -15,
+        "video":          -15,
+        "podcast":        -20,
+        "press release":  -15,
+        "release notes":  -15,
+        "changelog":      -20,
+        "magazine":       -25,
+        "journal":        -20,
+        "conference":     -30,
+        "proceedings":    -30,
+        "certification":  -20,
+        "course":         -20
+      },
+
+      "year_in_url_bonus":   20,
+      "year_in_title_bonus": 15,
+      "title_in_url_bonus":  15,
+      "pdf_url_bonus":       10,
+
+      "org_domain_match_bonus": 25,
+      "org_domain_mismatch_pdf_penalty": -20,
+      "wrong_year_in_url_penalty": -30,
+      "self_reference_domains": [],
+      "self_reference_domains_comment": "Add your repo's GitHub paths here. Matching URLs are hard-rejected to prevent the CSE surfacing the repo itself.",
+
+      "url_reject_patterns": [
+        "/webinar/", "/webinars/", "/slides/", "/video/", "/videos/",
+        "/podcast/", "/podcasts/", "/blog/", "/press/", "/careers/",
+        "/jobs/", "/investor-relations/", "/earnings/", "/datasheet/",
+        "/infographic/", "/product-guide/", "/product-manual/"
+      ],
+
+      "financial_title_terms": [
+        "annual report", "financial results", "quarterly results",
+        "earnings", "investor relations", "10-k", "10-q", "sec filing"
+      ],
+
+      "exclude_terms": [
+        "job posting", "career opportunity", "hiring", "stock price",
+        "certification exam", "training course", "free trial", "register now"
+      ],
+
+      "pdf_path_patterns": [
+        ".pdf", "/download/", "/downloads/", "/assets/", "/reports/",
+        "/research/", "/content/dam/", "/wp-content/uploads/", "/media/", "/files/"
+      ]
+    },
+
+    "python_packages": ["requests"]
+  }
+}

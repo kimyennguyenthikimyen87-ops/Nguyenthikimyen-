@@ -1,0 +1,74 @@
+{
+  "validation": {
+    "summary": {
+      "max_length": 400,
+      "min_length": 30,
+      "required_verbs": [
+        "analyzes",
+        "examines",
+        "evaluates",
+        "assesses",
+        "reviews",
+        "interprets",
+        "dissects",
+        "deconstructs",
+        "scrutinizes",
+        "compares",
+        "investigates",
+        "explores",
+        "probes",
+        "surveys",
+        "inquires",
+        "studies",
+        "documents",
+        "traces",
+        "maps",
+        "highlights",
+        "focuses",
+        "provides",
+        "offers",
+        "outlines"
+      ],
+      "forbidden_phrases": [
+        "this report",
+        "the report",
+        "this document",
+        "the document",
+        "this study",
+        "the study",
+        "this analysis"
+      ],
+      "marketing_words": [
+        "revolutionary",
+        "groundbreaking",
+        "cutting-edge",
+        "game-changing",
+        "unprecedented",
+        "innovative"
+      ],
+      "min_sentences": 2,
+      "require_numerical_data": true,
+      "comment": "The AI prompt targets 50-120 words; this floor catches only truly empty/stub summaries."
+    }
+  },
+  "processing": {
+    "age_threshold_years": 2,
+    "start_marker": "## Analysis Reports",
+    "end_marker": "## Resources",
+    "pdf_root_folder": "Annual Security Reports"
+  },
+  "matching": {
+    "similarity_threshold": 0.6,
+    "exact_match_priority": true,
+    "use_pdf_filename_matching": true,
+    "trust_existing_entries": true,
+    "update_fields": [
+      "organization_url",
+      "summary"
+    ]
+  },
+  "org_url_search": {
+    "mode": "report_url",
+    "comment": "Search settings (query template, scoring, credentials, skip domains) live in google-search-config.json. This 'mode' key selects which entry under google_search.modes to use."
+  }
+}

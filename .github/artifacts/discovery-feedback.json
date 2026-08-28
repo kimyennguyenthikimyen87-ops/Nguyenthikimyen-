@@ -1,0 +1,89 @@
+{
+  "schema_version": "2.0",
+  "last_updated": null,
+  "last_learner_run": null,
+  "total_feedback_events": 3,
+  "outcome_counts": {
+    "true_positive": 0,
+    "false_positive": 1,
+    "duplicate": 1,
+    "mismatch": 1
+  },
+  "triage_log": [],
+  "url_fingerprints": {
+    "seen": {},
+    "blocked": []
+  },
+  "query_history": {
+    "seen_queries": [],
+    "last_pruned": null
+  },
+  "content_index": {
+    "existing_report_keys": [],
+    "last_rebuilt": null
+  },
+  "learned": {
+    "signal_weight_deltas": {
+      "positive": {},
+      "negative": {}
+    },
+    "domain_blocklist": {
+      "domains": [],
+      "reason_map": {}
+    },
+    "domain_trustlist": {
+      "domains": [],
+      "bonus": 10
+    },
+    "org_specific_signals": {},
+    "title_patterns": {
+      "reject": [],
+      "trust": []
+    },
+    "score_threshold_delta": 0,
+    "validation_threshold": 0.6,
+    "gemini_rejection_patterns": [],
+    "summary": "",
+    "last_gemini_analysis": null
+  },
+  "overrides": {
+    "domain_blocklist": [],
+    "domain_trustlist": [],
+    "org_aliases": {},
+    "hard_reject_urls": {
+      "urls": []
+    }
+  },
+  "feedback_events": [
+    {
+      "timestamp": "2026-08-27T13:26:13.913499Z",
+      "issue_number": 1721,
+      "issue_title": "[Report Discovery] PaloAlto 2026 \u2014 Unit 42 IoT Threat Report",
+      "org": "PaloAlto",
+      "url": "https://ijsra.net/sites/default/files/fulltext_pdf/IJSRA-2026-1164.pdf",
+      "outcome": "false_positive",
+      "reason": "Triaged via issue checkbox",
+      "author": "jacobdjwilson"
+    },
+    {
+      "timestamp": "2026-08-27T14:18:51.657124Z",
+      "issue_number": 1719,
+      "issue_title": "[Report Discovery] Censys 2026 \u2014 State of the Internet",
+      "org": "Censys",
+      "url": "https://censys.com/resources/hub/",
+      "outcome": "mismatch",
+      "reason": "Triaged via issue checkbox",
+      "author": "jacobdjwilson"
+    },
+    {
+      "timestamp": "2026-08-27T14:24:14.870111Z",
+      "issue_number": 1714,
+      "issue_title": "[Report Discovery] Sophos 2026 \u2014 Threat Report",
+      "org": "Sophos",
+      "url": "https://www.interpol.int/Media/Documents/Publications/Cybercrime/African-Cyberthreat-Assessment-Report-2026",
+      "outcome": "duplicate",
+      "reason": "Triaged via issue checkbox",
+      "author": "jacobdjwilson"
+    }
+  ]
+}

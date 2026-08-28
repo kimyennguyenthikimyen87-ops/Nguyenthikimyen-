@@ -1,0 +1,33 @@
+name: Sync Main to Development
+
+on:
+  push:
+    branches:
+      - main
+
+
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync-branch:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout development
+        uses: actions/checkout@v6
+        with:
+          ref: development
+          fetch-depth: 0
+
+      - name: Merge main into development
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git merge origin/main
+          git push
